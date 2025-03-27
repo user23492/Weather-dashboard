@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Weather Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
+    <style>
+        /* Existing CSS styles */
+        :root {
+            --day-gradient: linear-gradient(135deg, #bb7900 0%, #832300 100%);
+            --night-gradient: linear-gradient(135deg, #0F2027 0%, #203A43 50%, #2C5364 100%);
+            --rainy-gradient: linear-gradient(135deg, #1E90FF 0%, #00BFFF 100%);
+            --primary-color: #4CAF50;
+            --danger-color: #ff4444;
+            --warning-color: #ffbb33;
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --transition-speed: 0.3s;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background: var(--day-gradient);
+            color: white;
+            transition: background 1s ease;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .night-mode {
+            background: var(--night-gradient);
+        }
+
+        .rainy-mode {
+            background: var(--rainy-gradient);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        input, button {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: transform var(--transition-speed) ease;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        .weather-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            transition: transform var(--transition-speed) ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .weather-icon {
+            width: 80px;
+            height: 80px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .forecast-card {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 12px;
+            margin: 10px 0;
+        }
+
+        .forecast-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .time-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .temp-range {
+            font-size: 0.9em;
+            color: #ffd700;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .aqi-indicator {
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .aqi-progress {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .clothing-recommendation {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .clothing-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        #errorMessage {
+            color: var(--danger-color);
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .loader {
+            display: none;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Gemini AI Chat Widget */
+   /* Gemini AI Chat Widget Styles */
+   #geminiChatWidget {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 1000;
+    }
+
+    #geminiChatToggle {
+        background: #000000;
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+
+    #geminiChatToggle:hover {
+        transform: scale(1.1);
+    }
+
+    #geminiChatToggle img {
+        filter: brightness(0) invert(1); /* Makes the icon white */
+    }
+
+    #geminiChatContainer {
+        display: none;
+        position: fixed;
+        top: 80px;
+        left: 20px;
+        width: 300px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    #chatHistory {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+    }
+
+    .chat-message {
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        max-width: 80%;
+    }
+
+    .chat-message.user {
+        background: var(--primary-color);
+        align-self: flex-end;
+        margin-left: auto;
+    }
+
+    .chat-message.gemini {
+        background: rgba(255, 255, 255, 0.2);
+        align-self: flex-start;
+    }
+
+    .chat-input {
+        display: flex;
+        gap: 10px;
+    }
+
+    .chat-input input {
+        flex: 1;
+        padding: 8px;
+        border-radius: 8px;
+        border: none;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    .chat-input button {
+        padding: 8px 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--primary-color);
+        color: white;
+        cursor: pointer;
+    }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .search-section {
+                flex-direction: column;
+            }
+
+            input, button {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .weather-cards {
+                grid-template-columns: 1fr;
+            }
+
+            #currentWeather {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .weather-icon {
+                width: 60px;
+                height: 60px;
+                margin: 0 auto;
+            }
+
+            .forecast-container {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+
+            .time-block {
+                font-size: 0.8em;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            h2 {
+                font-size: 1.2em;
+            }
+
+            h3 {
+                font-size: 1em;
+            }
+
+            button {
+                padding: 15px;
+            }
+
+            .clothing-item {
+                margin: 5px;
+                padding: 6px 10px;
+            }
+
+            .forecast-card {
+                padding: 10px;
+                margin: 5px 0;
+            }
+
+            #geminiChatContainer {
+                width: 90%;
+                left: 5%;
+                top: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Gemini AI Chat Widget -->
+    <div id="geminiChatWidget">
+        <!-- Custom Icon for Toggle -->
+        <button id="geminiChatToggle" onclick="toggleChat()">
+            <img src="https://brandlogo.org/wp-content/uploads/2024/06/Gemini-Icon-300x300.png.webp" alt="Gemini AI Icon" width="24" height="24">
+        </button>
+        <!-- Chat Container -->
+        <div id="geminiChatContainer">
+            <div id="chatHistory"></div>
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Ask me anything..." autocomplete="off">
+                <button onclick="sendMessageToGemini()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="search-section">
+            <input type="text" id="cityInput" placeholder="Enter city name" autocomplete="off">
+            <button onclick="searchWeather()">Search</button>
+            <button id="voiceBtn" onclick="startVoiceSearch()">🎤</button>
+            <div class="loader" id="mainLoader"></div>
+        </div>
+        <div id="errorMessage"></div>
+        
+        <div id="currentWeather" class="card"></div>
+        
+        <div class="weather-cards">
+            <div class="card" id="airQuality">
+                <h3>Air Quality Index</h3>
+                <div class="aqi-indicator">
+                    <div class="aqi-progress"></div>
+                </div>
+                <p id="aqiText"></p>
+            </div>
+            
+            <div class="card">
+                <h3>3-Hour Forecast (5 Days)</h3>
+                <div id="forecastContainer" class="forecast-container"></div>
+            </div>
+            <div class="card" id="clothingSuggestions"></div>
+            <div class="card" id="aiInsights">
+                <h3>Insights</h3>
+                <ul id="insightsList"></ul>
+            </div>
+            <div class="card" id="advancedChart"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'c1b15ab5037c4a86f5db46e96b722adc'; // Replace with your OpenWeatherMap API key
+        const GEMINI_API_KEY = 'AIzaSyCRtnqvfFE0DNJtBJ5IOmFN3KWPZYjptTk'; // Replace with your Gemini API key
+        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=GEMINI_API_KEY ';
+        const DateTime = luxon.DateTime;
+        let currentWeatherData = null;
+
+        // Toggle Gemini AI Chat
+        function toggleChat() {
+            const chatContainer = document.getElementById('geminiChatContainer');
+            chatContainer.style.display = chatContainer.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Gemini AI Integration
+        async function sendMessageToGemini() {
+    const userInput = document.getElementById('chatInput').value.trim();
+    if (!userInput) return;
+
+    addMessageToChat('user', userInput);
+
+    try {
+        const response = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCRtnqvfFE0DNJtBJ5IOmFN3KWPZYjptTk', // Replace with your API key
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: `You are a weather assistant. Provide detailed and helpful answers. ${userInput}`
+                        }]
+                    }]
+                })
+            }
+        );
+
+        // Check if the response is OK
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('API Error:', errorData);
+            throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+        }
+
+        const data = await response.json();
+
+        // Debugging: Log the full API response
+        console.log('API Response:', data);
+
+        // Check if the expected structure exists
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+            throw new Error('Invalid API response structure');
+        }
+
+        const geminiResponse = data.candidates[0].content.parts[0].text;
+        addMessageToChat('gemini', geminiResponse);
+    } catch (error) {
+        console.error('Error communicating with Gemini AI:', error);
+        addMessageToChat('gemini', 'Sorry, I am unable to process your request at the moment.');
+    }
+
+    document.getElementById('chatInput').value = '';
+}
+
+        function addMessageToChat(sender, message) {
+            const chatHistory = document.getElementById('chatHistory');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('chat-message', sender);
+            messageDiv.textContent = message;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        async function getWeatherData(city) {
+            showError('');
+            toggleLoader(true);
+            try {
+                const geoData = await fetchGeolocation(city);
+                const [weatherData, forecastData, airQualityData] = await Promise.all([
+                    fetchCurrentWeather(geoData),
+                    fetchForecast(geoData),
+                    fetchAirQuality(geoData)
+                ]);
+
+                currentWeatherData = {
+                    ...geoData,
+                    current: processCurrentWeather(weatherData),
+                    forecast: processForecastData(forecastData),
+                    airQuality: processAirQuality(airQualityData)
+                };
+
+                // Update theme based on time and weather
+                updateTheme(currentWeatherData.current);
+
+                updateDashboard();
+                generateInsights();
+                renderAdvancedChart();
+            } catch (error) {
+                showError(error.message);
+                console.error('Error:', error);
+            } finally {
+                toggleLoader(false);
+            }
+        }
+
+        // Update Theme Based on Time and Weather
+        function updateTheme(currentWeather) {
+            const body = document.body;
+            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+            const { sunrise, sunset, weather } = currentWeather;
+            const weatherCondition = weather[0].main.toLowerCase();
+
+            // Remove existing theme classes
+            body.classList.remove('night-mode', 'rainy-mode');
+
+            // Apply theme based on weather condition
+            if (weatherCondition.includes('rain')) {
+                body.classList.add('rainy-mode');
+            } else if (currentTime < sunrise || currentTime > sunset) {
+                body.classList.add('night-mode');
+            }
+            // Default to day mode if no conditions match
+        }
+
+        // Helper Functions
+        async function fetchGeolocation(city) {
+            const response = await axios.get(
+                `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${API_KEY}`
+            );
+            if (!response.data.length) throw new Error('City not found');
+            return response.data[0];
+        }
+
+        async function fetchCurrentWeather({ lat, lon }) {
+            const response = await axios.get(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+            );
+            return response.data;
+        }
+
+        async function fetchForecast({ lat, lon }) {
+            const response = await axios.get(
+                `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+            );
+            return response.data;
+        }
+
+        async function fetchAirQuality({ lat, lon }) {
+            const response = await axios.get(
+                `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`
+            );
+            return response.data;
+        }
+
+        // Process Data
+        function processCurrentWeather(data) {
+            return {
+                temp: data.main.temp,
+                humidity: data.main.humidity,
+                wind_speed: data.wind.speed,
+                weather: data.weather,
+                dt: data.dt,
+                sunrise: data.sys.sunrise,
+                sunset: data.sys.sunset
+            };
+        }
+
+        function processForecastData(data) {
+            return data.list.slice(0, 40).map(item => ({
+                dt: item.dt,
+                temp: item.main.temp,
+                icon: item.weather[0].icon,
+                description: item.weather[0].description,
+                wind_speed: item.wind.speed
+            }));
+        }
+
+        function processAirQuality(data) {
+            return data.list[0].main.aqi;
+        }
+
+        // Update UI
+        function updateDashboard() {
+            displayCurrentWeather();
+            displayForecast();
+            displayClothingSuggestions();
+            updateAirQuality();
+            generateInsights();
+        }
+
+        function displayCurrentWeather() {
+            const current = currentWeatherData.current;
+            document.getElementById('currentWeather').innerHTML = `
+                <h2>${currentWeatherData.name}, ${currentWeatherData.country}</h2>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <img src="https://openweathermap.org/img/wn/${current.weather[0].icon}@4x.png" class="weather-icon">
+                    <div>
+                        <h1 style="margin: 0">${Math.round(current.temp)}°C</h1>
+                        <p>${current.weather[0].description}</p>
+                        <p>Humidity: ${current.humidity}%</p>
+                        <p>Wind: ${current.wind_speed} m/s</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayForecast() {
+            const forecastHTML = currentWeatherData.forecast.map(entry => `
+                <div class="forecast-card">
+                    <div class="time-block">
+                        <span>${new Date(entry.dt * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
+                        <img src="https://openweathermap.org/img/wn/${entry.icon}.png" alt="${entry.description}">
+                    </div>
+                    <div class="time-block">
+                        <span>Temp</span>
+                        <span class="temp-range">${Math.round(entry.temp)}°C</span>
+                    </div>
+                    <div class="time-block">
+                        <span>Wind</span>
+                        <span>${entry.wind_speed} m/s</span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('forecastContainer').innerHTML = forecastHTML;
+        }
+
+        function displayClothingSuggestions() {
+            const temp = currentWeatherData.current.temp;
+            const weather = currentWeatherData.current.weather[0]?.main || 'Clear';
+            const suggestions = [];
+            
+            if (temp < 5) suggestions.push('Heavy jacket', 'Gloves', 'Winter hat');
+            else if (temp < 15) suggestions.push('Jacket', 'Sweater');
+            else if (temp < 25) suggestions.push('Light jacket');
+            else suggestions.push('T-shirt', 'Shorts');
+            
+            if (weather === 'Rain') suggestions.push('Umbrella', 'Waterproof shoes');
+            if (currentWeatherData.current.wind_speed > 5) suggestions.push('Windbreaker');
+            
+            document.getElementById('clothingSuggestions').innerHTML = `
+                <h3>Clothing Recommendations</h3>
+                <div class="clothing-recommendation">
+                    ${suggestions.map(item => `<div class="clothing-item">${item}</div>`).join('')}
+                </div>
+            `;
+        }
+
+        function updateAirQuality() {
+            const aqi = currentWeatherData.airQuality;
+            const aqiColors = {
+                1: '#00e400', 2: '#ffff00', 3: '#ff7e00', 4: '#ff0000', 5: '#8f3f97'
+            };
+            const aqiElement = document.querySelector('.aqi-progress');
+            aqiElement.style.width = `${(aqi / 5) * 100}%`;
+            aqiElement.style.backgroundColor = aqiColors[Math.ceil(aqi)] || '#ccc';
+            document.getElementById('aqiText').textContent = `AQI: ${aqi} - ${getAqiDescription(aqi)}`;
+        }
+
+        function getAqiDescription(aqi) {
+            const descriptions = [
+                'Excellent', 'Good', 'Fair', 'Poor', 'Very Poor'
+            ];
+            return descriptions[Math.floor(aqi) - 1] || 'Unknown';
+        }
+        function generateInsights() {
+    const temp = currentWeatherData.current.temp;
+    const weather = currentWeatherData.current.weather[0]?.main || 'Clear';
+    const windSpeed = currentWeatherData.current.wind_speed;
+    const humidity = currentWeatherData.current.humidity;
+    const city = currentWeatherData.name;
+    const country = currentWeatherData.country;
+
+    let insights = {
+        health: [],
+        activities: [],
+        clothing: [],
+        safety: []
+    };
+
+    // Temperature-based insights
+    if (temp > 30) {
+        insights.health.push('🌡️ Stay hydrated! Drink plenty of water.');
+        insights.health.push('☀️ Avoid prolonged sun exposure to prevent heatstroke.');
+        insights.activities.push('🏊 Consider swimming or staying indoors.');
+        insights.clothing.push('👕 Wear light, breathable clothing.');
+    } else if (temp < 10) {
+        insights.health.push('🧥 Dress warmly to avoid hypothermia.');
+        insights.health.push('❄️ Be cautious of icy conditions.');
+        insights.activities.push('⛷️ Perfect weather for skiing or snowboarding.');
+        insights.clothing.push('🧤 Wear gloves, a scarf, and a winter hat.');
+    }
+
+    // Weather condition-based insights
+    if (weather.toLowerCase().includes('rain')) {
+        insights.safety.push('☔ Carry an umbrella or wear a raincoat.');
+        insights.safety.push('🚗 Drive carefully on wet roads.');
+        insights.activities.push('📚 Stay indoors and enjoy a good book.');
+    } else if (weather.toLowerCase().includes('snow')) {
+        insights.safety.push('🧦 Wear snow boots to avoid slipping.');
+        insights.safety.push('🚶 Walk carefully on icy surfaces.');
+        insights.activities.push('☃️ Build a snowman or have a snowball fight!');
+    } else if (weather.toLowerCase().includes('thunderstorm')) {
+        insights.safety.push('⚡ Avoid open areas and tall objects during the storm.');
+        insights.safety.push('🏠 Stay indoors until the storm passes.');
+        insights.activities.push('🎧 Listen to calming music or watch a movie.');
+    }
+
+    // Wind speed-based insights
+    if (windSpeed > 10) {
+        insights.safety.push('💨 Secure loose objects outdoors to prevent damage.');
+        insights.safety.push('🌬️ Be cautious of strong winds while driving or walking.');
+        insights.activities.push('🪁 Fly a kite if it’s safe to do so!');
+    }
+
+    // Humidity-based insights
+    if (humidity > 80) {
+        insights.health.push('💧 High humidity! Stay cool and hydrated.');
+        insights.health.push('🌿 Use a dehumidifier to reduce indoor moisture.');
+    } else if (humidity < 30) {
+        insights.health.push('💦 Low humidity! Stay hydrated and moisturize your skin.');
+        insights.health.push('🌵 Use a humidifier to add moisture to the air.');
+    }
+
+    // Localized insights
+    if (country === 'IN' && weather.toLowerCase().includes('rain')) {
+        insights.activities.push('🌧️ Monsoon season! Enjoy the rain with some hot chai.');
+    } else if (country === 'CA' && temp < 0) {
+        insights.activities.push('🏒 Perfect weather for ice hockey or skating!');
+    }
+
+    // Display insights
+    const insightsList = document.getElementById('insightsList');
+    if (insights.health.length > 0 || insights.activities.length > 0 || insights.clothing.length > 0 || insights.safety.length > 0) {
+        let html = '';
+
+        if (insights.health.length > 0) {
+            html += `<h4>Health</h4><ul>${insights.health.map(insight => `<li>${insight}</li>`).join('')}</ul>`;
+        }
+        if (insights.activities.length > 0) {
+            html += `<h4>Activities</h4><ul>${insights.activities.map(insight => `<li>${insight}</li>`).join('')}</ul>`;
+        }
+        if (insights.clothing.length > 0) {
+            html += `<h4>Clothing</h4><ul>${insights.clothing.map(insight => `<li>${insight}</li>`).join('')}</ul>`;
+        }
+        if (insights.safety.length > 0) {
+            html += `<h4>Safety</h4><ul>${insights.safety.map(insight => `<li>${insight}</li>`).join('')}</ul>`;
+        }
+
+        insightsList.innerHTML = html;
+    } else {
+        insightsList.innerHTML = '<li>No specific insights for the current weather.</li>';
+    }
+}
+
+        function renderAdvancedChart() {
+            const forecast = currentWeatherData.forecast;
+            const dates = forecast.map(entry => DateTime.fromSeconds(entry.dt).toISO());
+            const temps = forecast.map(entry => entry.temp);
+            const humidities = forecast.map(entry => entry.humidity);
+
+            Plotly.newPlot('advancedChart', [{
+                x: dates,
+                y: temps,
+                name: 'Temperature',
+                type: 'scatter',
+                mode: 'lines+markers'
+            }, {
+                x: dates,
+                y: humidities,
+                name: 'Humidity',
+                yaxis: 'y2',
+                type: 'bar'
+            }], {
+                title: 'Advanced Weather Trends',
+                yaxis2: {
+                    title: 'Humidity (%)',
+                    overlaying: 'y',
+                    side: 'right'
+                }
+            });
+        }
+
+        function toggleLoader(show) {
+            document.getElementById('mainLoader').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = message ? 'block' : 'none';
+        }
+
+        function startVoiceSearch() {
+            if (!('webkitSpeechRecognition' in window)) {
+                showError('Voice search not supported in this browser');
+                return;
+            }
+
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'en-US';
+            
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('cityInput').value = transcript;
+                searchWeather();
+            };
+            
+            recognition.start();
+        }
+
+        function searchWeather() {
+            const city = document.getElementById('cityInput').value.trim();
+            if (!city) {
+                showError('Please enter a city name');
+                return;
+            }
+            getWeatherData(city);
+        }
+
+        // Initial load with default city
+        getWeatherData('London');
+    </script>
+</body>
+</html>
